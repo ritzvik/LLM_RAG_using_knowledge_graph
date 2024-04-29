@@ -72,8 +72,12 @@ def create_deployment_spec_for_neo4j():
                                 client.V1ContainerPort(container_port=7474, name = "http"),
                             ],
                             env=[
-                                client.V1EnvVar(name="NEO4J_AUTH", value=f"{get_neo4j_credentails()["username"]}/{get_neo4j_credentails()["password"]}"),
+                                client.V1EnvVar(name="NEO4J_AUTH", value=f"{get_neo4j_credentails()['username']}/{get_neo4j_credentails()['password']}"),
                             ],
+                            resources=client.V1ResourceRequirements(
+                                requests={"cpu": "0.5", "memory": "1Gi"},
+                                limits={"cpu": "1", "memory": "2Gi"},
+                            ),
                             volume_mounts=[
                                 client.V1VolumeMount(
                                     name="neo4j-data",
