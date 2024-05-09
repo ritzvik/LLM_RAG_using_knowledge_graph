@@ -1,5 +1,7 @@
 import os
+import time
 from kubernetes import client, config
+from neo4j import GraphDatabase
 
 config.load_incluster_config()
 
@@ -23,6 +25,7 @@ def get_neo4j_credentails():
         "username": "neo4j",
         "password": "password",
         "uri": f"bolt://{get_neo4j_service_name()}.{get_current_namespace()}:7687",
+        "database": "neo4j",
     }
 
 def get_onwer_reference():
@@ -73,6 +76,10 @@ def create_deployment_spec_for_neo4j():
                             ],
                             env=[
                                 client.V1EnvVar(name="NEO4J_AUTH", value=f"{get_neo4j_credentails()['username']}/{get_neo4j_credentails()['password']}"),
+                                client.V1EnvVar(name="NEO4J_apoc_export_file_enabled", value="true"),
+                                client.V1EnvVar(name="NEO4J_apoc_import_file_enabled", value="true"),
+                                client.V1EnvVar(name="NEO4J_apoc_import_file_use__neo4j__config", value="true"),
+                                client.V1EnvVar(name="NEO4JLABS_PLUGINS", value="[\"apoc\",\"graph-data-science\"]"),
                             ],
                             resources=client.V1ResourceRequirements(
                                 requests={"cpu": "0.5", "memory": "1Gi"},
@@ -82,7 +89,11 @@ def create_deployment_spec_for_neo4j():
                                 client.V1VolumeMount(
                                     name="neo4j-data",
                                     mount_path="/data",
-                                )
+                                ),
+                                client.V1VolumeMount(
+                                    name="neo4j-plugins",
+                                    mount_path="/plugins",
+                                ),
                             ]
                         )
                     ],
@@ -90,7 +101,11 @@ def create_deployment_spec_for_neo4j():
                         client.V1Volume(
                             name="neo4j-data",
                             empty_dir=client.V1EmptyDirVolumeSource(),
-                        )
+                        ),
+                        client.V1Volume(
+                            name="neo4j-plugins",
+                            empty_dir=client.V1EmptyDirVolumeSource(),
+                        ),
                     ]
                 ),
             )
@@ -154,3 +169,24 @@ def reset_neo4j_server():
     except Exception as e:
         print(f"Failed to stop neo4j server: {e}")
     deploy_neo4j_server()
+
+def is_neo4j_server_up():
+    neo4j_auth=(get_neo4j_credentails()["username"], get_neo4j_credentails()["password"])
+    with GraphDatabase.driver(get_neo4j_credentails()["uri"], auth=neo4j_auth) as driver:
+        try:
+            driver.verify_connectivity()
+            return True
+        except Exception as e:
+            return False
+
+def wait_for_neo4j_server(max_retries=10, sleep_duration=10):
+    neo4j_auth=(get_neo4j_credentails()["username"], get_neo4j_credentails()["password"])
+    with GraphDatabase.driver(get_neo4j_credentails()["uri"], auth=neo4j_auth) as driver:
+        for i in range(max_retries):
+            try:
+               driver.verify_connectivity()
+               return
+            except Exception as e:
+                print(f"Neo4j server is not ready yet. Retrying... {e}")
+                time.sleep(sleep_duration)
+        raise Exception("Neo4j server is not ready yet. Max retries exceeded.")
