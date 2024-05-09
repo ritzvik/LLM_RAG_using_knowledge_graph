@@ -382,21 +382,21 @@ for product_id in product_ids:
         print(f"{r['name']} ({r['id']})")
     print("\n\n")
 
+def get_formatted_product_response(query_result)->List:
+    response = []
+    for r in query_result:
+        response.append({
+            "id": r['p']['id'],
+            "name": r['p']['name']
+        })
+    return response
 
 def query_db(params):
-    matches = []
     # Querying the db
     result = query_graph(params)
-    for r in result:
-        product_id = r['p']['id']
-        matches.append({
-            "id": product_id,
-            "name":r['p']['name']
-        })
-    return matches    
+    return get_formatted_product_response(result)   
 
 def similarity_search(prompt, threshold=0.8):
-    matches = []
     embedding = create_embedding(prompt)
     query = '''
             WITH $embedding AS inputEmbedding
@@ -405,13 +405,9 @@ def similarity_search(prompt, threshold=0.8):
             RETURN p
             '''
     result = graph.query(query, params={'embedding': embedding, 'threshold': threshold})
-    for r in result:
-        product_id = r['p']['id']
-        matches.append({
-            "id": product_id,
-            "name":r['p']['name']
-        })
-    return matches
+    return get_formatted_product_response(result)
 
 prompt_similarity = "I'm looking for nice curtains"
 print(similarity_search(prompt_similarity))
+
+print(get_formatted_product_response(query_graph(define_query("Show me Adidas clothing for kids"))))
